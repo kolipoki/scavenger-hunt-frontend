@@ -2,71 +2,80 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Scavenger Hunt</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
-  <h1 class="text-3xl font-bold mb-6">Scavenger Hunt</h1>
-  
-  <p class="mb-4">Progress: <span id="counter">0/15</span></p>
-  
-  <button id="cameraBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-    Take Photo
-  </button>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-6">
 
-  <p id="message" class="mt-4 text-lg"></p>
+<div class="bg-white p-6 rounded-2xl shadow max-w-md w-full text-center">
+  <h1 class="text-2xl font-bold mb-4">Scavenger Hunt</h1>
+  <p id="counter" class="mb-4 text-lg">0 / 15</p>
+
+  <div id="cameraContainer" class="hidden flex flex-col items-center">
+    <video id="video" class="w-full rounded mb-2" autoplay playsinline></video>
+    <button id="snap" class="bg-indigo-600 text-white px-4 py-2 rounded mb-2">Take Photo</button>
+  </div>
+
+  <button id="openCamera" class="bg-green-600 text-white px-4 py-2 rounded">Open Camera</button>
+
+  <p id="message" class="mt-4 text-sm text-gray-700"></p>
+</div>
 
 <script>
 const API_BASE = 'https://scavenger-hunt-worker.davidlosonczi.workers.dev/api';
-const sessionId = localStorage.getItem('sessionId') || crypto.randomUUID();
-localStorage.setItem('sessionId', sessionId);
+let sessionId = 'session_' + Math.random().toString(36).substr(2, 9); // simple session
+let foundHints = [];
 
-const counterEl = document.getElementById('counter');
-const messageEl = document.getElementById('message');
+const openCameraBtn = document.getElementById('openCamera');
+const cameraContainer = document.getElementById('cameraContainer');
+const video = document.getElementById('video');
+const snapBtn = document.getElementById('snap');
+const counter = document.getElementById('counter');
+const message = document.getElementById('message');
 
-document.getElementById('cameraBtn').addEventListener('click', async () => {
+openCameraBtn.addEventListener('click', async () => {
+  openCameraBtn.classList.add('hidden');
+  cameraContainer.classList.remove('hidden');
+
   try {
-    // Open camera and capture image
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    const video = document.createElement('video');
     video.srcObject = stream;
-    await video.play();
+  } catch (err) {
+    alert('Camera access denied or unavailable.');
+    console.error(err);
+  }
+});
 
-    // Create a canvas to capture photo
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+snapBtn.addEventListener('click', async () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Stop camera
-    stream.getTracks().forEach(track => track.stop());
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
 
-    // Convert to blob
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-
-    // Prepare form data
     const formData = new FormData();
     formData.append('sessionId', sessionId);
     formData.append('file', blob, 'photo.jpg');
 
-    // Send to Worker
-    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
-    const data = await res.json();
-
-    // Update UI
-    messageEl.textContent = data.message;
-    counterEl.textContent = `${data.progress}/15`;
-
-    if (data.progress === 15) {
-      alert('🎉 Congratulations! You found all hints!');
+    try {
+      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success && data.progress) {
+        message.textContent = data.message;
+        foundHints.push(data.hint || ''); // optional: store which hint found
+        counter.textContent = `${data.progress} / 15`;
+        if (data.progress >= 15) alert('🎉 Congratulations! You found all hints!');
+      } else {
+        message.textContent = data.message || 'Text not found';
+      }
+    } catch (err) {
+      console.error(err);
+      message.textContent = 'Upload failed';
     }
-
-  } catch (err) {
-    console.error(err);
-    messageEl.textContent = 'Error accessing camera or uploading photo.';
-  }
+  }, 'image/jpeg');
 });
 </script>
 </body>
