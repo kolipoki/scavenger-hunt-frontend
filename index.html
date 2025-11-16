@@ -1,132 +1,73 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Scavenger Hunt</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scavenger Hunt</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center">
-  <div class="max-w-xl w-full p-6 bg-white rounded-2xl shadow-lg">
-    <h1 class="text-2xl font-bold mb-2">Scavenger Hunt</h1>
-    <p class="text-gray-600 mb-4">Find hidden handwritten text in the real world and register them here.</p>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+  <h1 class="text-3xl font-bold mb-6">Scavenger Hunt</h1>
+  
+  <p class="mb-4">Progress: <span id="counter">0/15</span></p>
+  
+  <button id="cameraBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+    Take Photo
+  </button>
 
-    <div class="flex items-center justify-between mb-4">
-      <div class="text-lg">Progress: <span id="counter" class="font-semibold">0/15</span></div>
-      <div>
-        <input id="hintId" class="border rounded px-2 py-1 mr-2" placeholder="#hint001" />
-      </div>
-    </div>
-
-    <div class="space-y-3">
-      <button id="startBtn" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">Open Camera</button>
-      <div id="message" class="text-sm text-green-600"></div>
-
-      <div id="cameraWrap" class="hidden mt-4">
-        <video id="video" autoplay playsinline class="w-full rounded"></video>
-        <div class="flex gap-2 mt-2">
-          <button id="snapBtn" class="flex-1 bg-green-500 text-white py-2 rounded">Snap</button>
-          <button id="closeCam" class="flex-1 bg-red-500 text-white py-2 rounded">Close</button>
-        </div>
-      </div>
-
-      <div id="foundList" class="mt-4 text-sm text-gray-700"></div>
-    </div>
-
-    <canvas id="canvas" style="display:none"></canvas>
-  </div>
+  <p id="message" class="mt-4 text-lg"></p>
 
 <script>
-// Configuration — replace with your deployed Worker URL
-const API_BASE = 'https://scavenger-hunt-worker.davidlosonczi.workers.dev';
-const TOTAL = 15;
-const sessionKey = 'scavenger.sessionId';
-const foundKey = 'scavenger.found';
+const API_BASE = 'https://scavenger-hunt-worker.davidlosonczi.workers.dev/api';
+const sessionId = localStorage.getItem('sessionId') || crypto.randomUUID();
+localStorage.setItem('sessionId', sessionId);
 
-// Session
-let sessionId = localStorage.getItem(sessionKey);
-if(!sessionId){ sessionId = crypto.randomUUID(); localStorage.setItem(sessionKey, sessionId); }
+const counterEl = document.getElementById('counter');
+const messageEl = document.getElementById('message');
 
-// UI refs
-const startBtn = document.getElementById('startBtn');
-const cameraWrap = document.getElementById('cameraWrap');
-const video = document.getElementById('video');
-const snapBtn = document.getElementById('snapBtn');
-const closeCam = document.getElementById('closeCam');
-const canvas = document.getElementById('canvas');
-const message = document.getElementById('message');
-const counter = document.getElementById('counter');
-const hintInput = document.getElementById('hintId');
-const foundList = document.getElementById('foundList');
-
-function loadProgress(){
-  const arr = JSON.parse(localStorage.getItem(foundKey) || '[]');
-  counter.textContent = arr.length + '/' + TOTAL;
-  foundList.innerHTML = arr.length ? ('Found: ' + arr.join(', ')) : '';
-  if(arr.length >= TOTAL) celebrate();
-}
-function markFound(hintId){
-  const arr = JSON.parse(localStorage.getItem(foundKey) || '[]');
-  if(!arr.includes(hintId)){ arr.push(hintId); localStorage.setItem(foundKey, JSON.stringify(arr)); }
-  loadProgress();
-}
-loadProgress();
-
-// Camera helpers
-let stream = null;
-async function openCamera(){
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode: 'environment' } });
+document.getElementById('cameraBtn').addEventListener('click', async () => {
+  try {
+    // Open camera and capture image
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.createElement('video');
     video.srcObject = stream;
-    cameraWrap.classList.remove('hidden');
-  }catch(err){
-    alert('Could not access camera: ' + err.message);
-  }
-}
-function closeCamera(){
-  cameraWrap.classList.add('hidden');
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  stream = null;
-}
-async function snap(){
-  const hintId = (hintInput.value || '').trim();
-  if(!hintId){ alert('Enter a hint ID like #hint001'); return; }
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0);
-  const blob = await new Promise(res=>canvas.toBlob(res, 'image/jpeg', 0.85));
-  // build formdata
-  const fd = new FormData();
-  fd.append('sessionId', sessionId);
-  fd.append('hintId', hintId);
-  fd.append('file', blob, hintId + '.jpg');
-  message.textContent = 'Uploading...';
-  try{
-    const r = await fetch(API_BASE + '/api/upload', { method: 'POST', body: fd });
-    const j = await r.json();
-    if(r.ok && j.found){
-      message.textContent = 'Found! ' + (j.message||'');
-      markFound(hintId);
-    }else{
-      message.textContent = 'Not found: ' + (j.message||'');
+    await video.play();
+
+    // Create a canvas to capture photo
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Stop camera
+    stream.getTracks().forEach(track => track.stop());
+
+    // Convert to blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('sessionId', sessionId);
+    formData.append('file', blob, 'photo.jpg');
+
+    // Send to Worker
+    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+    const data = await res.json();
+
+    // Update UI
+    messageEl.textContent = data.message;
+    counterEl.textContent = `${data.progress}/15`;
+
+    if (data.progress === 15) {
+      alert('🎉 Congratulations! You found all hints!');
     }
-  }catch(e){
-    message.textContent = 'Upload failed: ' + e.message;
+
+  } catch (err) {
+    console.error(err);
+    messageEl.textContent = 'Error accessing camera or uploading photo.';
   }
-}
-
-// celebration
-function celebrate(){
-  const el = document.createElement('div');
-  el.innerHTML = '<div class="fixed inset-0 bg-black/40 flex items-center justify-center"><div class="bg-white rounded-lg p-6 text-center"><h2 class="text-2xl font-bold">Congratulations! 🎉</h2><p class="mt-2">You found all items.</p></div></div>';
-  document.body.appendChild(el);
-}
-
-// events
-startBtn.addEventListener('click', openCamera);
-closeCam.addEventListener('click', closeCamera);
-snapBtn.addEventListener('click', snap);
+});
 </script>
 </body>
 </html>
