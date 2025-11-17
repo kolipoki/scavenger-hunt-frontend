@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Scavenger Hunt</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
 
@@ -156,9 +157,16 @@ function showVictory(completed) {
   } else {
     victoryList.innerHTML = '<div class="text-sm text-gray-600">No details available</div>';
   }
-
+  // Show modal
   victoryModal.classList.remove('hidden');
   victoryModal.classList.add('flex');
+
+  // --- CONFETTI ---
+  confetti({
+    particleCount: 200,
+    spread: 100,
+    origin: { y: 0.6 }
+  });
 }
 
 closeBtn.addEventListener('click', () => {
