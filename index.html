@@ -3,34 +3,34 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Scavenger Hunt</title>
+<title>Kincskeresés</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
 
 <div id="app" class="max-w-md w-full bg-white p-6 rounded-2xl shadow text-center">
-  <h1 class="text-2xl font-bold mb-4">Scavenger Hunt</h1>
+  <h1 class="text-2xl font-bold mb-4">Kincskeresés</h1>
   <p id="counter" class="mb-4 text-lg">0 / 0</p>
 
   <div id="cameraContainer" class="hidden flex flex-col items-center">
     <video id="video" class="w-full rounded mb-2" autoplay playsinline></video>
-    <button id="snap" class="bg-indigo-600 text-white px-4 py-2 rounded mb-2">Take Photo</button>
+    <button id="snap" class="bg-indigo-600 text-white px-4 py-2 rounded mb-2">Rögzítés</button>
   </div>
 
-  <button id="openCamera" class="bg-green-600 text-white px-4 py-2 rounded">Open Camera</button>
+  <button id="openCamera" class="bg-green-600 text-white px-4 py-2 rounded">Kamera megnyitása</button>
   <p id="message" class="mt-4 text-sm text-gray-700"></p>
 </div>
 
 <!-- Full page victory modal (hidden) -->
 <div id="victoryModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
   <div class="bg-white rounded-3xl p-8 max-w-lg w-full mx-4 text-center shadow-2xl">
-    <h2 class="text-3xl font-extrabold mb-4">🎉 Game Complete!</h2>
+    <h2 class="text-3xl font-extrabold mb-4">🎉 Gratulálok! Megtaláltál minden kincset! Jobb vagy mint Jack Sparrow! 🎉</h2>
     <p id="victoryDuration" class="text-lg mb-2"></p>
     <div id="victoryList" class="text-left max-h-64 overflow-auto mb-4"></div>
     <div class="flex justify-center gap-3">
-      <button id="restartBtn" class="bg-gray-200 px-4 py-2 rounded">Restart</button>
-      <button id="closeBtn" class="bg-indigo-600 text-white px-4 py-2 rounded">Close</button>
+      <button id="restartBtn" class="bg-gray-200 px-4 py-2 rounded">Újra</button>
+      <button id="closeBtn" class="bg-indigo-600 text-white px-4 py-2 rounded">Csaosz</button>
     </div>
   </div>
 </div>
@@ -61,7 +61,7 @@ openCameraBtn.addEventListener('click', async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     video.srcObject = stream;
   } catch (e) {
-    alert('Camera access denied or unavailable.');
+    alert('Kamara hozzáférés megtagadva vagy nem érhető el.');
     console.error(e);
   }
 });
@@ -90,11 +90,11 @@ snapBtn.addEventListener('click', async () => {
           await finalizeGame();
         }
       } else {
-        message.textContent = data.message || 'Text not found';
+        message.textContent = data.message || 'A szöveg nem található.';
       }
     } catch (e) {
       console.error(e);
-      message.textContent = 'Upload failed';
+      message.textContent = 'Feltöltési hiba történt.';
     }
   }, 'image/jpeg');
 });
@@ -106,7 +106,7 @@ async function fetchTotalHints() {
     totalHints = data.totalHints || 0;
     updateCounter();
   } catch (e) {
-    console.error('Failed to fetch total hints', e);
+    console.error('Nem sikerült betölteni a kincseket', e);
     totalHints = 0;
     updateCounter();
   }
@@ -127,12 +127,12 @@ async function finalizeGame() {
     if (result.success && result.completed) {
       showVictory(result.completed);
     } else {
-      console.warn('Game complete call did not return completed record', result);
+      console.warn('A játék befejezését jelző hívás nem adott vissza befejezett rekordot', result);
       // still show simple modal
       showVictory({ start: null, finish: new Date().toISOString(), durationMs: 0, ordered: [] });
     }
   } catch (e) {
-    console.error('Failed to finalize game', e);
+    console.error('Nem sikerült a játékot lezárni', e);
     showVictory({ start: null, finish: new Date().toISOString(), durationMs: 0, ordered: [] });
   }
 }
