@@ -1,31 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Scavenger Hunt</title>
-<script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-6">
-
-<div class="bg-white p-6 rounded-2xl shadow max-w-md w-full text-center">
-  <h1 class="text-2xl font-bold mb-4">Scavenger Hunt</h1>
-  <p id="counter" class="mb-4 text-lg">0 / 15</p>
-
-  <div id="cameraContainer" class="hidden flex flex-col items-center">
-    <video id="video" class="w-full rounded mb-2" autoplay playsinline></video>
-    <button id="snap" class="bg-indigo-600 text-white px-4 py-2 rounded mb-2">Take Photo</button>
-  </div>
-
-  <button id="openCamera" class="bg-green-600 text-white px-4 py-2 rounded">Open Camera</button>
-
-  <p id="message" class="mt-4 text-sm text-gray-700"></p>
-</div>
-
-<script>
 const API_BASE = 'https://scavenger-hunt-worker.davidlosonczi.workers.dev/api';
 let sessionId = 'session_' + Math.random().toString(36).substr(2, 9); // simple session
 let foundHints = [];
+let totalHints = 0;
 
 const openCameraBtn = document.getElementById('openCamera');
 const cameraContainer = document.getElementById('cameraContainer');
@@ -63,11 +39,15 @@ snapBtn.addEventListener('click', async () => {
     try {
       const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.success && data.progress) {
+
+      if (data.success) {
+        foundHints.push(data.hint || '');
         message.textContent = data.message;
-        foundHints.push(data.hint || ''); // optional: store which hint found
-        counter.textContent = `${data.progress} / 15`;
-        if (data.progress >= 15) alert('🎉 Congratulations! You found all hints!');
+        updateCounterDisplay(data.progress);
+
+        if (data.progress >= totalHints) {
+          alert('🎉 Congratulations! You found all hints!');
+        }
       } else {
         message.textContent = data.message || 'Text not found';
       }
@@ -77,6 +57,24 @@ snapBtn.addEventListener('click', async () => {
     }
   }, 'image/jpeg');
 });
-</script>
-</body>
-</html>
+
+// On page load, fetch totalHints from backend
+async function init() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/hints`);
+    const data = await res.json();
+    totalHints = data.totalHints || 15; // fallback
+    updateCounterDisplay(0);
+  } catch (err) {
+    console.error('Failed to fetch total hints', err);
+    totalHints = 15;
+    updateCounterDisplay(0);
+  }
+}
+
+function updateCounterDisplay(foundCount) {
+  counter.textContent = `${foundCount}/${totalHints}`;
+}
+
+// Initialize on page load
+init();
