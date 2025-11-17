@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Scavenger Hunt</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-6">
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
 
-<div class="bg-white p-6 rounded-2xl shadow max-w-md w-full text-center">
+<div id="app" class="max-w-md w-full bg-white p-6 rounded-2xl shadow text-center">
   <h1 class="text-2xl font-bold mb-4">Scavenger Hunt</h1>
   <p id="counter" class="mb-4 text-lg">0 / 0</p>
 
@@ -18,13 +18,25 @@
   </div>
 
   <button id="openCamera" class="bg-green-600 text-white px-4 py-2 rounded">Open Camera</button>
-
   <p id="message" class="mt-4 text-sm text-gray-700"></p>
+</div>
+
+<!-- Full page victory modal (hidden) -->
+<div id="victoryModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-3xl p-8 max-w-lg w-full mx-4 text-center shadow-2xl">
+    <h2 class="text-3xl font-extrabold mb-4">🎉 Game Complete!</h2>
+    <p id="victoryDuration" class="text-lg mb-2"></p>
+    <div id="victoryList" class="text-left max-h-64 overflow-auto mb-4"></div>
+    <div class="flex justify-center gap-3">
+      <button id="restartBtn" class="bg-gray-200 px-4 py-2 rounded">Restart</button>
+      <button id="closeBtn" class="bg-indigo-600 text-white px-4 py-2 rounded">Close</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const API_BASE = 'https://scavenger-hunt-worker.davidlosonczi.workers.dev/api';
-let sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+let sessionId = 'session_' + Math.random().toString(36).substr(2,9);
 let totalHints = 0;
 let foundCount = 0;
 
@@ -35,72 +47,131 @@ const snapBtn = document.getElementById('snap');
 const counter = document.getElementById('counter');
 const message = document.getElementById('message');
 
-// --- Open camera ---
+const victoryModal = document.getElementById('victoryModal');
+const victoryDuration = document.getElementById('victoryDuration');
+const victoryList = document.getElementById('victoryList');
+const closeBtn = document.getElementById('closeBtn');
+const restartBtn = document.getElementById('restartBtn');
+
 openCameraBtn.addEventListener('click', async () => {
   openCameraBtn.classList.add('hidden');
   cameraContainer.classList.remove('hidden');
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     video.srcObject = stream;
-  } catch (err) {
+  } catch (e) {
     alert('Camera access denied or unavailable.');
-    console.error(err);
+    console.error(e);
   }
 });
 
-// --- Take photo and submit ---
 snapBtn.addEventListener('click', async () => {
   const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
   canvas.toBlob(async (blob) => {
     if (!blob) return;
-
-    const formData = new FormData();
-    formData.append('sessionId', sessionId);
-    formData.append('file', blob, 'photo.jpg');
+    const fd = new FormData();
+    fd.append('sessionId', sessionId);
+    fd.append('file', blob, 'photo.jpg');
 
     try {
-      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: fd });
       const data = await res.json();
-
       if (data.success) {
         message.textContent = data.message;
-        foundCount = data.progress; 
+        foundCount = data.progress;
         updateCounter();
-        if (foundCount >= totalHints) alert('🎉 Congratulations! You found all hints!');
+        if (foundCount >= data.total) {
+          // Final hint found: notify backend to create completed record
+          await finalizeGame();
+        }
       } else {
         message.textContent = data.message || 'Text not found';
       }
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error(e);
       message.textContent = 'Upload failed';
     }
   }, 'image/jpeg');
 });
 
-// --- Fetch total hints from backend ---
 async function fetchTotalHints() {
   try {
     const res = await fetch(`${API_BASE}/hints`);
     const data = await res.json();
     totalHints = data.totalHints || 0;
     updateCounter();
-  } catch (err) {
-    console.error('Failed to fetch total hints', err);
+  } catch (e) {
+    console.error('Failed to fetch total hints', e);
     totalHints = 0;
     updateCounter();
   }
 }
 
-// --- Update counter display ---
 function updateCounter() {
   counter.textContent = `${foundCount}/${totalHints}`;
 }
 
-// --- Initialize on page load ---
+async function finalizeGame() {
+  try {
+    const res = await fetch(`${API_BASE}/game-complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId })
+    });
+    const result = await res.json();
+    if (result.success && result.completed) {
+      showVictory(result.completed);
+    } else {
+      console.warn('Game complete call did not return completed record', result);
+      // still show simple modal
+      showVictory({ start: null, finish: new Date().toISOString(), durationMs: 0, ordered: [] });
+    }
+  } catch (e) {
+    console.error('Failed to finalize game', e);
+    showVictory({ start: null, finish: new Date().toISOString(), durationMs: 0, ordered: [] });
+  }
+}
+
+function showVictory(completed) {
+  // Build readable duration
+  const ms = completed.durationMs || 0;
+  const s = Math.floor(ms / 1000);
+  const minutes = Math.floor(s / 60);
+  const seconds = s % 60;
+  victoryDuration.textContent = `Time: ${minutes}m ${seconds}s`;
+
+  // Fill ordered list
+  victoryList.innerHTML = '';
+  if (Array.isArray(completed.ordered) && completed.ordered.length) {
+    completed.ordered.forEach((h, i) => {
+      const div = document.createElement('div');
+      div.className = 'py-1 border-b';
+      div.innerHTML = `<strong>#${i+1}</strong> ${h.text || h.id} <span class="text-sm text-gray-500">(${h.ts || '-'})</span>`;
+      victoryList.appendChild(div);
+    });
+  } else {
+    victoryList.innerHTML = '<div class="text-sm text-gray-600">No details available</div>';
+  }
+
+  victoryModal.classList.remove('hidden');
+  victoryModal.classList.add('flex');
+}
+
+closeBtn.addEventListener('click', () => {
+  victoryModal.classList.add('hidden');
+  victoryModal.classList.remove('flex');
+});
+
+restartBtn.addEventListener('click', () => {
+  // simple reload to restart game
+  location.reload();
+});
+
+// init
 fetchTotalHints();
 </script>
 </body>
