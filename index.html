@@ -1,6 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Scavenger Hunt</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-6">
+
+<div class="bg-white p-6 rounded-2xl shadow max-w-md w-full text-center">
+  <h1 class="text-2xl font-bold mb-4">Scavenger Hunt</h1>
+  <p id="counter" class="mb-4 text-lg">0 / 0</p>
+
+  <div id="cameraContainer" class="hidden flex flex-col items-center">
+    <video id="video" class="w-full rounded mb-2" autoplay playsinline></video>
+    <button id="snap" class="bg-indigo-600 text-white px-4 py-2 rounded mb-2">Take Photo</button>
+  </div>
+
+  <button id="openCamera" class="bg-green-600 text-white px-4 py-2 rounded">Open Camera</button>
+  <p id="message" class="mt-4 text-sm text-gray-700"></p>
+</div>
+
+<script>
 const API_BASE = 'https://scavenger-hunt-worker.davidlosonczi.workers.dev/api';
-let sessionId = 'session_' + Math.random().toString(36).substr(2, 9); // simple session
-let foundHints = [];
+let sessionId = 'session_' + Math.random().toString(36).substr(2, 9); 
 let totalHints = 0;
 
 const openCameraBtn = document.getElementById('openCamera');
@@ -41,10 +64,8 @@ snapBtn.addEventListener('click', async () => {
       const data = await res.json();
 
       if (data.success) {
-        foundHints.push(data.hint || '');
         message.textContent = data.message;
         updateCounterDisplay(data.progress);
-
         if (data.progress >= totalHints) {
           alert('🎉 Congratulations! You found all hints!');
         }
@@ -58,23 +79,27 @@ snapBtn.addEventListener('click', async () => {
   }, 'image/jpeg');
 });
 
-// On page load, fetch totalHints from backend
+// Fetch total hints from backend
 async function init() {
   try {
     const res = await fetch(`${API_BASE}/admin/hints`);
     const data = await res.json();
-    totalHints = data.totalHints || 15; // fallback
+    totalHints = data.totalHints || Object.keys(data.hints).length;
     updateCounterDisplay(0);
   } catch (err) {
     console.error('Failed to fetch total hints', err);
-    totalHints = 15;
+    totalHints = 0;
     updateCounterDisplay(0);
   }
 }
 
+// Update the counter display
 function updateCounterDisplay(foundCount) {
   counter.textContent = `${foundCount}/${totalHints}`;
 }
 
 // Initialize on page load
 init();
+</script>
+</body>
+</html>
